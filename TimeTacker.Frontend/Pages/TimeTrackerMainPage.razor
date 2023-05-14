@@ -1,0 +1,147 @@
+@page "/"
+@using Services.Contracts.Models
+@using TimeTracker.Client
+@using System.Threading
+@using Microsoft.Extensions.Configuration
+@using TimeTacker.Frontend.Helpers
+@using TimeTacker.Frontend.Models
+@inject TimeTrackerClient timeTrackerClient
+@inject IConfiguration configuration
+
+<div class="page-wrapper bg-gra-02 p-t-130 p-b-100 font-poppins">
+    <div class="wrapper wrapper--w680">
+        <div class="card card-4">
+            <div class="card-body">
+                <div class="container">
+                    <div class="row">
+                        <div class='col'>
+                            <div class="form-group">
+                                <RadzenDatePicker Placeholder="Начало" TValue="DateTime?" ShowTime="true" HoursStep="1" MinutesStep="30" Change=@(StartDateTimeChange) DateFormat="dd/MM/yyyy HH:mm"/>
+                            </div>
+                        </div>
+                        <div class='col'>
+                            <div class="form-group">
+                                <RadzenDatePicker Placeholder="Конец" TValue="DateTime?" ShowTime="true" HoursStep="1" MinutesStep="30" Change=@(EndDateTimeChange) DateFormat="dd/MM/yyyy HH:mm"/>
+                            </div>
+                        </div>
+                        <div class='col-md-auto'>
+                            <RadzenButton Click=@(async args => await GetJiraItems()) Disabled=@DatesNotSet Icon="refresh" ButtonStyle="ButtonStyle.Light"/>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class='col p-t-15'>
+                            <RadzenDataGrid @ref="jiraItemsGrid" AllowColumnResize="true" PageSize="8" AllowPaging="true" Data="@jiraItems" TItem="JiraItemInfoViewModel" ColumnWidth="300px" EditMode="DataGridEditMode.Single">
+                                <Columns>
+                                    <RadzenDataGridColumn TItem="JiraItemInfoViewModel" Property="Key" Title="Key" Width="140px"/>
+                                    <RadzenDataGridColumn TItem="JiraItemInfoViewModel" Property="Summary" Title="Описание" Width="200px"/>
+                                    <RadzenDataGridColumn TItem="JiraItemInfoViewModel" Property="TotalWorkingPeriod" Title="Всего работал" Width="140px">
+                                        <Template Context="item">
+                                            <RadzenTextBox Class="w-100" @bind-Value="item.TotalWorkingPeriod"/>
+                                        </Template>
+                                        <EditTemplate Context="item">
+                                            <RadzenTextBox @bind-Value="item.TotalWorkingPeriod" Class="w-100"/>
+                                        </EditTemplate>
+                                    </RadzenDataGridColumn>
+                                    <RadzenDataGridColumn TItem="JiraItemInfoViewModel" Context="item" Filterable="false" Sortable="false" TextAlign="TextAlign.Center" Width="60px">
+                                        <Template Context="item">
+                                            <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Size="ButtonSize.Small" Class="m-1" Click="@(args => DeleteRow(item))" @onclick:stopPropagation="true">
+                                            </RadzenButton>
+                                        </Template>
+                                        <EditTemplate Context="item">
+                                            <RadzenButton ButtonStyle="ButtonStyle.Danger" Icon="delete" Size="ButtonSize.Small" Class="m-1" Click="@(args => DeleteRow(item))">
+                                            </RadzenButton>
+                                        </EditTemplate>
+                                    </RadzenDataGridColumn>
+                                </Columns>
+                            </RadzenDataGrid>
+                            <div class="col p-t-15">
+                                <RadzenButton Click=@(args => LogTime()) Text="Затрекать" Icon="check_circle" ButtonStyle="ButtonStyle.Success" Disabled=@(jiraItems == null || !jiraItems.Any()) />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code
+{
+    private RadzenDataGrid<JiraItemInfoViewModel> jiraItemsGrid;
+    private IList<JiraItemInfoViewModel> jiraItems;
+    private DateTime? StartDateTime;
+    private DateTime? EndDateTime;
+    private bool DatesNotSet => !StartDateTime.HasValue || !EndDateTime.HasValue;
+    private JiraItemInfoViewModel itemToInsert;
+
+    private async Task GetJiraItems()
+    {
+        if (!StartDateTime.HasValue || !EndDateTime.HasValue)
+        {
+            return;
+        }
+        
+        jiraItems = (await timeTrackerClient.GetJiraItemsByTimePeriod(new GetJiraItemsByPeriodRequestModel
+        {
+            Begin = StartDateTime.Value.ToUtcDateTimeOffset(),
+            End = EndDateTime.Value.ToUtcDateTimeOffset(),
+        }, CancellationToken.None)).JiraItemsTotalWorkingHours.Select(i => i.MapToViewModel()).ToList();
+        jiraItems.Add(new JiraItemInfoViewModel
+        {
+            Key = configuration["MEETING_TASK_KEY"],
+            Summary = "Встречи",
+            TotalWorkingPeriod = "0:00"
+        });
+    }
+
+    private void StartDateTimeChange(DateTime? dateTime)
+    {
+        if (!dateTime.HasValue)
+        {
+            return;
+        }
+        StartDateTime = dateTime.Value;
+    }
+
+    private void EndDateTimeChange(DateTime? dateTime)
+    {
+        if (!dateTime.HasValue)
+        {
+            return;
+        }
+        EndDateTime = dateTime.Value;
+    }
+
+    private async Task LogTime()
+    {
+        var requestModel = jiraItems.Select(i =>
+        {
+            var item = i.MapFromViewModel();
+            return new LogTimeRequestModel
+            {
+                JiraItem = item.Key,
+                StartDate = new DateTimeOffset(StartDateTime.Value.ToUniversalTime()),
+                WorkingDuration = item.TotalWorkingPeriod,
+            };
+        });
+        await timeTrackerClient.LogTime(requestModel, CancellationToken.None);
+    }
+
+    private async Task DeleteRow(JiraItemInfoViewModel item)
+    {
+        if (item == itemToInsert)
+        {
+            itemToInsert = null;
+        }
+
+        if (jiraItems.Contains(item))
+        {
+            jiraItems.Remove(item);
+            await jiraItemsGrid.Reload();
+        }
+        else
+        {
+            jiraItemsGrid.CancelEditRow(item);
+        }
+    }
+}
