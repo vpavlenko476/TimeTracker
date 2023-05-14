@@ -1,3 +1,12 @@
+# Как развернуть
+
+1. Установаить в time-tracker-backend.env обязательные параметры JIRA_AUTH_TOKEN и REST_JIRA_URL формата "https://host"
+2. запустить docker-compose файл, для этого перейти в корень проекта и выолнить команду docker-compose up
+
+time-tracker-frontend будет доступн по адресу http://localhost:5200/
+
+time-tracker-backend будет доступн по адресу http://localhost:5100/
+
 # Конфигурация
 
 ## time-tracker-backend
@@ -46,14 +55,5 @@ POST /log-time - создание записи о работе над задач
 |-----------------------|------------------------------------------------|-----------------------|
 | REST_TIME_TRACKER_URL | Подключение к time-tracker-backend             | http://localhost:5100 |
 | MEETING_TASK_KEY      | Номер задачи для списывания времени на встречи | 'IDPPSOP-4'           |
-
-## Как развернуть
-
-1. Установаить в time-tracker-backend.env обязательные параметры JIRA_AUTH_TOKEN и REST_JIRA_URL формата "https://host"
-2. запустить docker-compose файл, для этого перейти в корень проекта и выолнить команду docker-compose up 
-  
-time-tracker-frontend будет доступн по адресу http://localhost:5200/ 
-
-time-tracker-backend будет доступн по адресу http://localhost:5100/
 
    ``
