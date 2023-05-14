@@ -279,8 +279,4 @@ __pycache__/
 # tools/
 
 # MesOms
-**/Scripts/*.js*
-*.slnf
-**/Benchmarks/netstandard2.0
-**/Examples
-nuget.config
+/data
